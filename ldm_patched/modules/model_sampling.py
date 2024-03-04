@@ -74,9 +74,15 @@ class ModelSamplingDiscrete(torch.nn.Module):
         return self.sigmas[-1]
 
     def timestep(self, sigma):
-        log_sigma = sigma.log()
-        dists = log_sigma.to(self.log_sigmas.device) - self.log_sigmas[:, None]
-        return dists.abs().argmin(dim=0).view(sigma.shape).to(sigma.device)
+        log_sigma = sigma.log().to(self.log_sigmas.device)
+        dists = log_sigma - self.log_sigmas[:, None]
+        low_idx = dists.ge(0).cumsum(dim=0).argmax(dim=0).clamp(max=self.log_sigmas.shape[0] - 2)
+        high_idx = low_idx + 1
+        low, high = self.log_sigmas[low_idx], self.log_sigmas[high_idx]
+        w = (low - log_sigma) / (low - high)
+        w = w.clamp(0, 1)
+        t = (1 - w) * low_idx + w * high_idx
+        return t.view(sigma.shape)
 
     def sigma(self, timestep):
         t = torch.clamp(timestep.float().to(self.log_sigmas.device), min=0, max=(len(self.sigmas) - 1))
@@ -107,11 +113,9 @@ class ModelSamplingContinuousEDM(torch.nn.Module):
 
         sigma_min = sampling_settings.get("sigma_min", 0.002)
         sigma_max = sampling_settings.get("sigma_max", 120.0)
-        sigma_data = sampling_settings.get("sigma_data", 1.0)
-        self.set_sigma_range(sigma_min, sigma_max, sigma_data)
+        self.set_sigma_range(sigma_min, sigma_max)
 
-    def set_sigma_range(self, sigma_min, sigma_max, sigma_data):
-        self.sigma_data = sigma_data
+    def set_sigma_range(self, sigma_min, sigma_max):
         sigmas = torch.linspace(math.log(sigma_min), math.log(sigma_max), 1000).exp()
 
         self.register_buffer('sigmas', sigmas) #for compatibility with some schedulers
