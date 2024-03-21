@@ -389,8 +389,6 @@ def apply_control(h, control, name):
         ctrl = control[name].pop()
         if ctrl is not None:
             try:
-                if ctrl.shape[2] != h.shape[2] or ctrl.shape[3] != h.shape[3]:
-                    ctrl = F.interpolate(ctrl.float(), size=(h.shape[2], h.shape[3]), mode="bicubic", align_corners=False).to(h.dtype)
                 h += ctrl
             except:
                 print("warning control could not be applied", h.shape, ctrl.shape)
@@ -945,7 +943,7 @@ class UNetModel(nn.Module):
             h = self.id_predictor(h)
         elif "groupnorm_wrapper" in transformer_options:
             out_norm, out_rest = self.out[0], self.out[1:]
-            h = transformer_options["groupnorm_wrapper"](out_norm, h, transformer_options)
+            h = transformer_options["groupnorm_wrapper"](h, out_norm, transformer_options)
             h = out_rest(h)
         else:
             h = self.out(h)
