@@ -42,4 +42,5 @@ notification.mp3
 /test/results.xml
 coverage.xml
 **/tests/**/expectations
+/shap_e_model_cache
 /input
